@@ -1,14 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 const routes = [
-  // ========== 管理员后台路由 ==========
   {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/admin/login/Login.vue'),
     meta: { requiresAuth: false }
   },
-  // 管理员大屏首页
   {
     path: '/dashboard',
     name: 'Dashboard',
@@ -21,8 +19,6 @@ const routes = [
     component: () => import('@/views/admin/node/NodeManage.vue'),
     meta: { requiresAuth: true, role: 'admin' }
   },
-
-  // ========== 流通结点端路由 ==========
   {
     path: '/node/login',
     name: 'NodeLogin',
@@ -96,24 +92,56 @@ const routes = [
     meta: { requiresAuth: true, role: 'node' }
   },
   {
-    path: '/node/audit',
-    name: 'AuditBatch',
-    component: () => import('@/views/node/audit/index.vue'),
+    path: '/node/fishBatch/confirmList',
+    name: 'FishBatchConfirm',
+    component: () => import('@/views/node/fishBatch/confirmList.vue'),
+    meta: { requiresAuth: true, role: 'node' }
+  },
+  {
+    path: '/node/farmSeaBatch/confirmList',
+    name: 'FarmSeaBatchConfirm',
+    component: () => import('@/views/node/farmSeaBatch/confirmList.vue'),
+    meta: { requiresAuth: true, role: 'node' }
+  },
+  {
+    path: '/node/processBatch/confirmList',
+    name: 'ProcessBatchConfirm',
+    component: () => import('@/views/node/processBatch/confirmList.vue'),
+    meta: { requiresAuth: true, role: 'node' }
+  },
+  {
+    path: '/node/wholBatch/confirmList',
+    name: 'WholBatchConfirm',
+    component: () => import('@/views/node/wholBatch/confirmList.vue'),
+    meta: { requiresAuth: true, role: 'node' }
+  },
+  {
+    path: '/node/password',
+    name: 'NodePassword',
+    component: () => import('@/views/node/password/index.vue'),
     meta: { requiresAuth: true, role: 'node' }
   },
   {
     path: '/node',
     redirect: '/node/home'
   },
-  // ========== 消费者溯源公开页面 ==========
   {
     path: '/customer/trace',
     name: 'CustomerTrace',
     component: () => import('@/views/customer/trace/index.vue'),
     meta: { requiresAuth: false }
   },
-  // 根路径默认跳管理员登录，登录状态的判断全部交给beforeEach守卫处理
-  { path: '/', redirect: '/login' }
+  {
+    path: '/customer/trace/detail',
+    name: 'CustomerTraceDetail',
+    component: () => import('@/views/customer/trace/detail.vue'),
+    meta: { requiresAuth: false }
+  },
+  { path: '/', redirect: '/login' },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/customer/trace'
+  }
 ]
 
 const router = createRouter({
@@ -121,48 +149,59 @@ const router = createRouter({
   routes
 })
 
-/**
- * 全局路由前置守卫
- * ✅ useStore 必须写在守卫回调函数内部，不要写在模块顶层，不要写在routes.redirect回调中
- */
-router.beforeEach((to, from, next) => {
-  // 每次导航触发，在守卫内部获取store实例
-  const userStore = useUserStore()
-  const nodeStore = useNodeUserStore()
+// 工具函数：读取localStorage中pinia持久化的admin用户token
+function getAdminToken() {
+  const str = localStorage.getItem('user')
+  if (!str) return ''
+  try {
+    const obj = JSON.parse(str)
+    return obj.token || ''
+  } catch (e) {
+    return ''
+  }
+}
 
-  // 免登录页面直接放行
+// 工具函数：读取localStorage中pinia持久化的node用户token
+function getNodeToken() {
+  const str = localStorage.getItem('nodeUser')
+  if (!str) return ''
+  try {
+    const obj = JSON.parse(str)
+    return obj.token || ''
+  } catch (e) {
+    return ''
+  }
+}
+
+router.beforeEach((to, from, next) => {
+  const adminToken = getAdminToken()
+  const nodeToken = getNodeToken()
+
+  // 不需要登录的页面
   if (!to.meta.requiresAuth) {
-    // 已登录状态，禁止再次进入登录页，自动跳转到对应首页
-    if (to.path === '/login' && userStore.isLoggedIn()) {
+    // 访问管理员登录页，管理员已有token，跳dashboard
+    if (to.path === '/login' && adminToken.trim()) {
       return next('/dashboard')
     }
-    if (to.path === '/node/login' && nodeStore.isLoggedIn()) {
+    // 访问节点登录页，节点已有token，跳node/home
+    if (to.path === '/node/login' && nodeToken.trim()) {
       return next('/node/home')
     }
     return next()
   }
 
-  // 流通节点权限判断
+  // 需要鉴权的页面
   if (to.meta.role === 'node') {
-    if (nodeStore.isLoggedIn()) {
-      next()
-    } else {
-      next('/node/login')
+    if (!nodeToken.trim()) {
+      return next('/node/login')
     }
   } else if (to.meta.role === 'admin') {
-    // 管理员权限判断
-    if (userStore.isLoggedIn()) {
-      next()
-    } else {
-      next('/login')
+    if (!adminToken.trim()) {
+      return next('/login')
     }
-  } else {
-    next()
   }
-})
 
-// 注意！import 要放在守卫外面，不能写在routes数组内部
-import { useUserStore } from '@/store/user'
-import { useNodeUserStore } from '@/store/nodeUser'
+  next()
+})
 
 export default router

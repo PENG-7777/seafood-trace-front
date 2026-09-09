@@ -13,7 +13,7 @@ import request from '@/utils/request'
  */
 export function getDashboardStats(params) {
   return request({
-    url: '/node/stats/dashboard',
+    url: '/admin/node/stats/dashboard',
     method: 'get',
     params
   })

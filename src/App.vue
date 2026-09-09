@@ -1,10 +1,8 @@
 <template>
-  <!-- 路由出口，页面根据router配置渲染 -->
   <router-view />
 </template>
 
 <script setup>
-// 顶层根组件，无需额外业务代码
 </script>
 
 <style>

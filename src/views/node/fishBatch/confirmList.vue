@@ -2,10 +2,9 @@
   <div class="confirm-page">
     <!-- 顶部返回标题栏 -->
     <div class="page-header">
-      <div class="back-icon" @click="$router.back()">&lt;</div>
+      <div class="back-icon" @click="$router.back()"></div>
       <div class="title">下游企业进场申请确认</div>
     </div>
-
     <!-- 业务Banner -->
     <div class="banner-block">
       <div class="banner-text">
@@ -13,14 +12,12 @@
         <p>源头追溯 保障食品安全</p>
       </div>
     </div>
-
     <!-- 列表容器 -->
     <div class="list-wrap">
       <!-- 空数据提示 -->
       <div class="empty-tip" v-if="applyList.length === 0">
         暂无待确认的进场申请
       </div>
-
       <!-- 申请卡片 -->
       <div class="apply-card" v-for="item in applyList" :key="item.processBatchId">
         <div class="card-row">
@@ -44,61 +41,81 @@
           <span
             class="state-tag"
             :class="{
-              wait: item.applyState === 1,
-              ok: item.applyState === 2
+              wait: item.applyState === 2,
+              ok: item.applyState === 3
             }"
           >
             {{ getStateText(item.applyState) }}
           </span>
         </div>
-
         <!-- 操作按钮区域 -->
-        <div class="btn-group" v-if="item.applyState === 1">
+        <div class="btn-group" v-if="item.applyState === 2">
           <button class="btn-confirm" @click="handleConfirm(item.processBatchId)">确认进场</button>
         </div>
-        <div class="done-tip" v-if="item.applyState === 2">
+        <div class="done-tip" v-if="item.applyState === 3">
           ✅ 已确认进场
         </div>
       </div>
     </div>
-
-    <!-- 底部导航栏 -->
+    <!-- 底部导航栏（和首页逻辑统一 + 激活高亮） -->
     <div class="tab-bar">
-      <div class="tab-item" @click="$router.push('/node/home')">首页</div>
-      <div class="tab-item" @click="$router.push('/node/mine')">我的</div>
-      <div class="tab-item" @click="$router.push('/node/password')">更新密码</div>
+      <div class="tab-item" :class="{active: route.path === '/node/home'}" @click="$router.push('/node/home')">
+        <div class="icon-home"></div>
+        <span>首页</span>
+      </div>
+      <div class="tab-item" :class="{active: isBatchPage}" @click="goBatchManagePage">
+        <div class="icon-my"></div>
+        <span>我的</span>
+      </div>
+      <div class="tab-item" :class="{active: route.path === '/node/password'}" @click="$router.push('/node/password')">
+        <div class="icon-pwd"></div>
+        <span>更新密码</span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-// 引入接口文件（你已有的api）
+import { useRouter, useRoute } from 'vue-router'
+import { useNodeUserStore } from '@/store/nodeUser'
+import { storeToRefs } from 'pinia'
 import { confirmProcessBatch, getProcessApplyList } from '@/api/node/fishBatch'
+
+const router = useRouter()
+const route = useRoute()
+const nodeStore = useNodeUserStore()
+const { nodeType } = storeToRefs(nodeStore)
 
 // 进场申请列表数据
 const applyList = ref([])
 
 /**
  * 获取申请状态中文文案
- * @param {Number} applyState 1待确认，2已确认
+ * 后端状态定义：2=待确认，3=已确认
  */
 const getStateText = (applyState) => {
   const map = {
-    1: '待捕捞企业确认',
-    2: '已确认进场'
+    2: '待捕捞企业确认',
+    3: '已确认进场'
   }
-  return map[applyState]
+  return map[applyState] || '未知状态'
 }
 
 /**
  * 加载当前捕捞企业收到的所有下游进场申请
  */
 const loadApplyList = async () => {
-  const res = await getProcessApplyList()
-  if (res.code === 200) {
-    applyList.value = res.data
+  try {
+    const res = await getProcessApplyList()
+    if (res.code === 200) {
+      applyList.value = res.data
+    }
+  } catch (err) {
+    console.error('加载进场申请失败：', err)
+    ElMessage.error('加载申请列表失败')
+    applyList.value = []
   }
 }
 
@@ -107,6 +124,9 @@ const loadApplyList = async () => {
  * @param {Number} processBatchId 加工申请主键
  */
 const handleConfirm = async (processBatchId) => {
+  // 新增打印，看传入的id
+  console.log("【确认进场】要更新的processBatchId = ", processBatchId);
+
   ElMessageBox.confirm(
     '确认批准该下游企业进场加工？确认后流程不可撤回',
     '业务确认提示',
@@ -116,17 +136,53 @@ const handleConfirm = async (processBatchId) => {
       type: 'info'
     }
   ).then(async () => {
-    // 调用你预先定义好的确认接口
-    const res = await confirmProcessBatch(processBatchId)
-    if (res.code === 200) {
-      ElMessage.success('进场申请确认成功！')
-      // 确认完成刷新列表
-      loadApplyList()
+    try {
+      const res = await confirmProcessBatch(processBatchId)
+      console.log("确认接口返回完整结果：", res)
+      if (res.code === 200) {
+        ElMessage.success('进场申请确认成功！')
+        // 重新加载列表
+        loadApplyList()
+      }
+    } catch (err) {
+      console.error('确认进场失败', err)
+      ElMessage.error('操作失败，请重试')
     }
   }).catch(() => {})
 }
 
-// 页面挂载自动加载申请列表
+
+/**
+ * 根据企业类型跳转对应批号管理页面
+ */
+const goBatchManagePage = () => {
+  const code = Number(nodeType.value)
+  switch (code) {
+    case 1:
+      router.push('/node/fishBatch/list')
+      break
+    case 2:
+      router.push('/node/farmSeaBatch/list')
+      break
+    case 3:
+      router.push('/node/processBatch/list')
+      break
+    case 4:
+      router.push('/node/wholBatch/list')
+      break
+    case 5:
+      router.push('/node/retaBatch/list')
+      break
+    default:
+      router.push('/node/fishBatch/list')
+  }
+}
+
+// 判断当前页面是否为批号管理页，用于tab高亮
+const isBatchPage = computed(() => {
+  return route.path.includes('/list')
+})
+
 onMounted(() => {
   loadApplyList()
 })
@@ -143,29 +199,34 @@ onMounted(() => {
 .page-header {
   display: flex;
   align-items: center;
-  height: 80px;
-  font-size: 32px;
+  height: 50px;
+  font-size: 17px;
   position: relative;
 }
 .back-icon {
   position: absolute;
-  left: 20px;
-  font-size: 36px;
-  color: #333;
+  left: 16px;
+  top:16px;
+  width: 18px;
+  height: 18px;
+  background: url('/images/back.png') no-repeat center;
+  background-size: contain;
+  cursor: pointer;
 }
 .title {
   width: 100%;
   text-align: center;
   color: #333;
+  font-weight: bold;
 }
 .banner-block {
-  height: 240px;
+  height: 160px;
   background: #48bc70 url('@/assets/banner-food.png') no-repeat right center;
   background-size: contain;
-  padding: 30px 20px;
+  padding: 20px 20px;
 }
 .banner-text h1 {
-  font-size: 60px;
+  font-size: 32px;
   color: #fff;
   font-weight: bold;
   margin: 10px 0;
@@ -178,32 +239,32 @@ onMounted(() => {
   display: inline-block;
 }
 .list-wrap {
-  padding: 30px 24px;
+  padding: 12px 20px;
   flex: 1;
 }
 .empty-tip {
   text-align: center;
-  font-size: 28px;
+  font-size: 16px;
   color: #999;
   padding: 60px 0;
 }
 .apply-card {
   border: 1px solid #eee;
   border-radius: 16px;
-  padding: 24px;
-  margin-bottom: 20px;
+  padding: 8px;
+  margin-bottom: 8px;
 }
 .card-row {
-  font-size: 28px;
-  line-height: 50px;
+  font-size: 15px;
+  line-height: 22px;
 }
 .label {
   color: #666;
 }
 .state-tag {
-  padding: 4px 12px;
-  border-radius: 8px;
-  font-size: 24px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 13px;
 }
 .wait {
   background: #fff3cd;
@@ -214,30 +275,68 @@ onMounted(() => {
   color: #198754;
 }
 .btn-group {
-  margin-top: 20px;
+  margin-top: 16px;
 }
 .btn-confirm {
   width: 100%;
-  height: 72px;
+  height: 42px;
   background-color: #39b568;
   border: none;
-  border-radius: 14px;
+  border-radius: 12px;
   color: #fff;
-  font-size: 30px;
+  font-size: 16px;
 }
 .done-tip {
-  margin-top:20px;
-  font-size:28px;
+  margin: top 4px;
+  font-size:16px;
   color:#198754;
-  text-align:center;
+  text-align:right;
 }
 .tab-bar {
   display: flex;
   justify-content: space-around;
-  height: 120px;
+  height: 60px;
   align-items: center;
   border-top:1px solid #eee;
-  font-size:24px;
+  flex-shrink: 0;
+}
+.tab-item {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  font-size:14px;
   color:#999;
+  gap:4px;
+  cursor: pointer;
+}
+.tab-item.active {
+  color: #0052D4;
+}
+.icon-home,
+.icon-my,
+.icon-pwd {
+  width: 22px;
+  height: 22px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+.icon-home {
+  background-image: url('/images/home.png');
+}
+.icon-my {
+  background-image: url('/images/my.png');
+}
+.icon-pwd {
+  background-image: url('/images/change.png');
+}
+.tab-item.active .icon-home {
+  background-image: url('/images/home-active.png');
+}
+.tab-item.active .icon-my {
+  background-image: url('/images/my-active.png');
+}
+.tab-item.active .icon-pwd {
+  background-image: url('/images/change-active.png');
 }
 </style>

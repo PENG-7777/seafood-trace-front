@@ -553,22 +553,16 @@ onMounted(async () => {
 .content-row {
   margin-top: 16px;
 }
-/* 统一卡片外边距 */
-.chart-card {
-  margin-bottom: 4px;
-}
-.pie‑row {
-  margin-bottom: 2px;
-}
+
 /* 区分不同图表高度，整体压缩 */
 :deep(.chart‑line .el-card__body) {
-  padding: 6px !important;
+  padding: 2px !important;
 }
 :deep(.chart‑pie .el-card__body) {
-  padding: 6px !important;
+  padding: 2px !important;
 }
 :deep(.chart‑bar .el-card__body) {
-  padding: 6px !important;
+  padding: 2px !important;
 }
 .detail-container {
   line-height: 36px;

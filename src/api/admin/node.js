@@ -17,7 +17,7 @@ import request from '@/utils/request'
  */
 export function getNodePage(params) {
   return request({
-    url: '/node/page',
+    url: '/admin/node/page',
     method: 'get',
     params
   })
@@ -31,7 +31,7 @@ export function getNodePage(params) {
  */
 export function saveNode(data) {
   return request({
-    url: '/node/save',
+    url: '/admin/node/save',
     method: 'post',
     data
   })
@@ -44,7 +44,7 @@ export function saveNode(data) {
  */
 export function getNodeDetail(nodeId) {
   return request({
-    url: `/node/detail/${nodeId}`,
+    url: `/admin/node/detail/${nodeId}`,
     method: 'get'
   })
 }
@@ -56,7 +56,7 @@ export function getNodeDetail(nodeId) {
  */
 export function deleteNode(nodeId) {
   return request({
-    url: `/node/delete/${nodeId}`,
+    url: `/admin/node/delete/${nodeId}`,
     method: 'delete'
   })
 }

@@ -14,11 +14,11 @@
       <!-- 登录表单卡片：改为半透明，露出底层背景图 -->
       <div class="login-card">
         <el-form ref="loginFormRef" :model="loginForm" :rules="loginRules" label-width="0">
-          <!-- 登录编码输入框：文字大小20px -->
-          <el-form-item prop="loginCode">
+          <!-- 登录编码输入框：prop为code，v-model绑定loginForm.code -->
+          <el-form-item prop="code">
             <el-input
               class="custom-input"
-              v-model="loginForm.loginCode"
+              v-model="loginForm.code"
               placeholder="登录编码"
               prefix-icon="User"
               :inputStyle="{ fontSize: '20px' }"
@@ -61,9 +61,8 @@ import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 // 导入Pinia流通节点用户仓库，用于保存登录后的企业完整信息
 import { useNodeUserStore } from '@/store/nodeUser'
-// 导入封装好的axios请求工具（自行确认api路径）
+// 导入封装好的axios请求工具
 import request from '@/utils/request'
-
 // 获取路由实例，登录成功跳转首页
 const router = useRouter()
 // 获取表单DOM引用，用于表单校验
@@ -71,15 +70,15 @@ const loginFormRef = ref(null)
 // 登录加载状态，防止重复点击提交
 const loginLoading = ref(false)
 
-// 登录表单绑定数据
+// 登录表单绑定数据：字段为code，和后端NodeLoginVO保持一致
 const loginForm = ref({
-  loginCode: '', // 登录编码（流通节点账号）
+  code: '',      // 和后端VO的code字段严格对应
   password: ''   // 登录密码
 })
 
-// 表单校验规则：非空校验
+// 表单校验规则：prop同步为code
 const loginRules = ref({
-  loginCode: [
+  code: [
     { required: true, message: '请输入登录编码', trigger: 'blur' }
   ],
   password: [
@@ -90,8 +89,8 @@ const loginRules = ref({
 /**
  * 登录按钮点击事件
  * 1.执行表单校验
- * 2.请求后端登录接口
- * 3.打印完整response调试日志
+ * 2.请求后端登录接口 /node/login（request.js自动拼接为 http://127.0.0.1:8082/api/node/login）
+ * 3.打印提交的JSON与后端返回结果，用于调试
  * 4.校验code=200，将token、nodeId、nodeName、nodeType存入Pinia
  * 5.跳转节点首页 /node/home
  */
@@ -100,9 +99,12 @@ const handleLogin = async () => {
     if (!valid) return
     loginLoading.value = true
     try {
+      // 打印前端实际提交给后端的JSON数据，调试用
+      console.log('前端提交请求体：', loginForm.value)
+      // 关键：地址写 /node/login，request.js会自动匹配并拼接完整后端地址
+      // 不要写 /api/node/login，否则匹配不到SERVER_MAP.node，会请求前端5173端口导致404
       const res = await request.post('/node/login', loginForm.value)
       console.log('【登录页拿到的返回】', res)
-
       // 手动判断业务码
       if (res.code === 200) {
         const nodeStore = useNodeUserStore()
@@ -115,13 +117,12 @@ const handleLogin = async () => {
       }
     } catch (error) {
       console.error('【登录接口请求异常】', error)
+      ElMessage.error(error.msg || '请求异常')
     } finally {
       loginLoading.value = false
     }
   })
 }
-
-
 </script>
 
 <style scoped>
