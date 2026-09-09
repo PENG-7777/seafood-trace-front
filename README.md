@@ -1,3 +1,8 @@
+<<<<<<< HEAD
+=======
+[ReadMe.md](https://github.com/user-attachments/files/32015177/ReadMe.md)
+
+>>>>>>> a52e587e79d0a880fd696e0abef21b2a08137988
 # ReadMe
 
 # 冷冻海产品溯源系统使用手册
