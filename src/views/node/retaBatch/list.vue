@@ -7,7 +7,7 @@ state=1【新建】｜state=2【待上游确认】｜state=3【已确认上架�
 2. state=2待确认：仅查看详情，不可编辑删除
 3. state=3已确认上架：支持查看详情、单条下架操作；点击卡片打开详情弹窗，移除卡片勾选批量下架，改为单条下架按钮
 4. state=4已下架：仅查看详情
-溯源码支持一键复制
+溯源码支持一键复制、生成二维码并保存本地
 -->
 <template>
   <div class="reta-batch-list">
@@ -129,6 +129,7 @@ state=1【新建】｜state=2【待上游确认】｜state=3【已确认上架�
           </div>
           <div class="btn-operation">
             <button class="btn-detail">查看详情</button>
+            <button class="btn-qr" @click.stop="openQrCode(item)">二维码</button>
             <button class="btn-off-single" @click.stop="handleSingleOffShelve(item.rbId)">下架</button>
           </div>
         </div>
@@ -208,7 +209,7 @@ state=1【新建】｜state=2【待上游确认】｜state=3【已确认上架�
         </div>
       </div>
     </div>
-    <!-- ====================== 详情弹窗 ====================== -->
+    <!-- ====================== 详情弹窗（新增二维码模块） ====================== -->
     <div v-if="detailDialogVisible" class="dialog-mask" @click.self="detailDialogVisible = false">
       <div class="dialog-box">
         <div class="dialog-title">零售商批号详情</div>
@@ -236,6 +237,18 @@ state=1【新建】｜state=2【待上游确认】｜state=3【已确认上架�
           <span class="detail-label">备注：</span>
           <span>{{ detailForm.remarks || '-' }}</span>
         </div>
+        <!-- 溯源二维码区域 -->
+        <div class="qr-section">
+          <div class="qr-title">溯源二维码</div>
+          <div class="qr-content">
+            <div v-if="qrLoading" class="qr-loading">二维码生成中...</div>
+            <img v-else-if="qrCodeImg" :src="qrCodeImg" alt="溯源二维码" class="qr-image" />
+            <div v-else class="qr-empty">暂无溯源二维码</div>
+          </div>
+          <button v-if="qrCodeImg" class="btn-download-qr" @click="downloadQrCode">
+            保存二维码到本地
+          </button>
+        </div>
         <div class="dialog-btn-group">
           <button class="btn-save" @click="detailDialogVisible = false">关闭</button>
         </div>
@@ -252,8 +265,10 @@ import {
   updateRetaBatch,
   deleteRetaBatch,
   offShelveRetaBatch,
-  sendRetaConfirmRequest
+  sendRetaConfirmRequest,
+  getRetaBatchQrCode
 } from '@/api/node/retaBatch'
+
 // 完整零售商批号列表原始数据
 const batchList = ref([])
 // 编辑弹窗控制变量与编辑表单
@@ -262,6 +277,9 @@ const editForm = ref({})
 // 详情弹窗控制变量与详情表单
 const detailDialogVisible = ref(false)
 const detailForm = ref({})
+// 二维码相关变量
+const qrCodeImg = ref('')
+const qrLoading = ref(false)
 /**
  * 计算属性：过滤 state=1 新建状态批号
  */
@@ -289,11 +307,70 @@ const loadBatchList = async () => {
 }
 /**
  * 打开详情弹窗，数据浅拷贝回填表单
+ * 有溯源码时自动生成对应二维码
  * @param {Object} row 当前行批号对象
  */
 const openDetail = (row) => {
   detailForm.value = { ...row }
   detailDialogVisible.value = true
+  // 存在溯源码时自动生成二维码
+  if (row.sourceId) {
+    generateQrCode(row.sourceId)
+  } else {
+    qrCodeImg.value = ''
+  }
+}
+/**
+ * 快捷打开二维码（卡片按钮直接调用）
+ * @param {Object} row 当前行批号对象
+ */
+const openQrCode = (row) => {
+  openDetail(row)
+}
+/**
+ * 调用后端接口生成溯源二维码Base64
+ * @param {String} sourceId 溯源编号
+ */
+const generateQrCode = async (sourceId) => {
+  try {
+    qrLoading.value = true
+    qrCodeImg.value = ''
+    const res = await getRetaBatchQrCode(sourceId)
+    if (res.code === 200) {
+      // 后端返回纯Base64，拼接图片前缀后渲染
+      qrCodeImg.value = `data:image/png;base64,${res.data}`
+    } else {
+      ElMessage.error(res.msg || '二维码生成失败')
+    }
+  } catch (error) {
+    console.error('生成二维码异常：', error)
+    qrCodeImg.value = ''
+    // 捕获业务错误，提示用户
+    if (error.code !== undefined) {
+      ElMessage.error(error.msg || '二维码生成失败')
+    } else {
+      ElMessage.error('网络异常，请稍后重试')
+    }
+  } finally {
+    qrLoading.value = false
+  }
+}
+/**
+ * 下载二维码图片到本地
+ */
+const downloadQrCode = () => {
+  if (!qrCodeImg.value) {
+    ElMessage.warning('二维码未生成，无法保存')
+    return
+  }
+  const link = document.createElement('a')
+  link.href = qrCodeImg.value
+  // 文件名自动携带溯源编号
+  link.download = `溯源二维码_${detailForm.value.sourceId}.png`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  ElMessage.success('二维码已保存到本地')
 }
 /**
  * 打开编辑弹窗，回填数据
@@ -489,10 +566,10 @@ onMounted(() => {
   font-size: 14px;
 }
 .source-id {
-    color: #0052D4;
-    font-weight: bold;
-    cursor: pointer;
-    text-decoration: underline;
+  color: #0052D4;
+  font-weight: bold;
+  cursor: pointer;
+  text-decoration: underline;
 }
 .btn-operation {
   display: flex;
@@ -524,6 +601,10 @@ onMounted(() => {
 .btn-send-confirm {
   background:#fff3cd;
   color:#856404;
+}
+.btn-qr {
+  background: #d1e7dd;
+  color: #0f5132;
 }
 .btn-off-single {
   background: #f46b6b;
@@ -612,6 +693,52 @@ onMounted(() => {
   background:#39b568;
   color:#fff;
   font-size:16px;
+  cursor: pointer;
+}
+/* 溯源二维码区域样式 */
+.qr-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed #eee;
+  text-align: center;
+}
+.qr-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 12px;
+}
+.qr-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.qr-loading,
+.qr-empty {
+  width: 160px;
+  height: 160px;
+  line-height: 160px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  color: #999;
+  font-size: 14px;
+}
+.qr-image {
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
+.btn-download-qr {
+  width: 100%;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: #0052D4;
+  color: #fff;
+  font-size: 14px;
   cursor: pointer;
 }
 .tab-bar {

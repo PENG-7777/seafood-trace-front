@@ -16,28 +16,23 @@
     </div>
   </div>
 </template>
-
 <script setup>
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
-
 const loginFormRef = ref(null)
 const router = useRouter()
 const userStore = useUserStore()
 const loading = ref(false)
-
 const loginForm = reactive({
   username: '',
   password: ''
 })
-
 const loginRules = reactive({
   username: [{ required: true, message: '账号不能为空', trigger: 'blur' }],
   password: [{ required: true, message: '密码不能为空', trigger: 'blur' }]
 })
-
 const handleLogin = async () => {
   try {
     await loginFormRef.value.validate()
@@ -45,6 +40,9 @@ const handleLogin = async () => {
     const flag = await userStore.loginAction(loginForm)
     if (flag) {
       ElMessage.success('登录成功')
+      console.log('登录后的token：', userStore.token)
+      // 【可选】少量延时，等待pinia状态同步，解决极少数状态不同步问题
+      await new Promise(resolve => setTimeout(resolve, 30))
       router.push('/node/manage')
       loginForm.username = ''
       loginForm.password = ''
@@ -58,7 +56,6 @@ const handleLogin = async () => {
   }
 }
 </script>
-
 <style scoped>
 .login-container {
   width: 100vw;

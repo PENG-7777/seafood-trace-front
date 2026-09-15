@@ -103,3 +103,16 @@ export function getUpstreamWholBatch(sourceNodeId) {
     method: 'GET'
   })
 }
+
+// src/api/node/retaBatch.js
+// 新增：获取零售商批号溯源二维码base64
+export function getRetaBatchQrCode(sourceId) {
+  return nodeRequest({
+    url: '/node/retaBatch/qrCode',
+    method: 'GET',
+    params: { sourceId }
+  })
+}
+
+
+

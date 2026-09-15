@@ -26,6 +26,12 @@ const routes = [
     meta: { requiresAuth: false, role: 'node' }
   },
   {
+    path: '/node/Register',
+    name: 'NodeRegister',
+    component: () => import('@/views/node/Register/NodeRegister.vue'),
+    meta: { requiresAuth: false, role: 'node' }
+  },
+  {
     path: '/node/home',
     name: 'NodeHome',
     component: () => import('@/views/node/home/index.vue'),

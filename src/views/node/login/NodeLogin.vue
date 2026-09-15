@@ -49,6 +49,13 @@
               登录
             </el-button>
           </el-form-item>
+          <!-- 注册账号跳转链接 -->
+          <el-form-item>
+            <div class="register-tip">
+              还没有账号？
+              <el-link type="primary" :underline="false" @click="goRegister">立即注册</el-link>
+            </div>
+          </el-form-item>
         </el-form>
       </div>
     </div>
@@ -63,19 +70,18 @@ import { useRouter } from 'vue-router'
 import { useNodeUserStore } from '@/store/nodeUser'
 // 导入封装好的axios请求工具
 import request from '@/utils/request'
+
 // 获取路由实例，登录成功跳转首页
 const router = useRouter()
 // 获取表单DOM引用，用于表单校验
 const loginFormRef = ref(null)
 // 登录加载状态，防止重复点击提交
 const loginLoading = ref(false)
-
 // 登录表单绑定数据：字段为code，和后端NodeLoginVO保持一致
 const loginForm = ref({
-  code: '',      // 和后端VO的code字段严格对应
-  password: ''   // 登录密码
+  code: '', // 和后端VO的code字段严格对应
+  password: '' // 登录密码
 })
-
 // 表单校验规则：prop同步为code
 const loginRules = ref({
   code: [
@@ -122,6 +128,13 @@ const handleLogin = async () => {
       loginLoading.value = false
     }
   })
+}
+
+/**
+ * 跳转到企业注册页面
+ */
+const goRegister = () => {
+  router.push('/node/register')
 }
 </script>
 
@@ -182,7 +195,7 @@ const handleLogin = async () => {
 }
 /* 修改表单项间距 */
 :deep(.el-form-item) {
-  margin-bottom: 18px;
+  margin-bottom: 8px;
 }
 /* 自定义输入框：输入文字高度、字体强制16px，覆盖原有冲突样式 */
 :deep(.custom-input .el-input__inner) {
@@ -201,6 +214,13 @@ const handleLogin = async () => {
   font-size: 20px;
   border: none;
   background: linear-gradient(90deg, #87d4f8, #007bdd);
+}
+/* 注册提示文字样式 */
+.register-tip {
+  width: 100%;
+  text-align: center;
+  font-size: 14px;
+  color: #666;
 }
 /* 手机端更小屏幕适配 */
 @media screen and (max-width: 375px) {

@@ -1,12 +1,42 @@
 <template>
   <div class="page-container">
     <div class="page-title">冷冻海产品溯源平台节点管理</div>
-    <el-row :gutter="20" class="content-row">
+    <el-row :gutter="10" class="content-row">
       <!-- 左侧：表格区域 -->
       <el-col :span="13">
         <el-card shadow="hover">
-          <NodeSearchForm @search="handleSearch" @add="openAddDialog" />
+          <!-- 搜索栏：新增企业状态筛选 -->
+          <el-form :inline="true" :model="searchParams" class="search-form">
+            <el-form-item label="企业名称">
+              <el-input v-model="searchParams.name" placeholder="请输入企业名称" clearable style="width: 180px" />
+            </el-form-item>
+            <el-form-item label="企业类型">
+              <el-select v-model="searchParams.type" placeholder="请选择" clearable style="width: 140px">
+                <el-option v-for="item in dictStore.typeList" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="所属省份">
+              <el-select v-model="searchParams.provId" placeholder="请选择" clearable style="width: 140px" @change="onSearchProvinceChange">
+                <el-option v-for="p in dictStore.provinceList" :key="p.value" :label="p.label" :value="p.value" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="注册状态">
+              <el-select v-model="searchParams.status" placeholder="请选择" clearable style="width: 140px">
+                <el-option label="待审核" :value="1" />
+                <el-option label="已通过" :value="2" />
+                <el-option label="禁用" :value="3" />
+              </el-select>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="handleSearch">搜索</el-button>
+              <el-button @click="resetSearch">重置</el-button>
+              <el-button type="success" @click="openAddDialog">新增企业</el-button>
+            </el-form-item>
+          </el-form>
+
           <el-divider />
+
+          <!-- 表格：新增审核通过、禁用操作按钮事件 -->
           <NodeTable
             :table-data="tableData"
             :page-info="pageInfo"
@@ -14,9 +44,12 @@
             @view="openDetailDialog"
             @edit="openEditDialog"
             @delete="handleDelete"
+            @pass="handlePass"
+            @disable="handleDisable"
           />
         </el-card>
       </el-col>
+
       <!-- 右侧：统计看板区域 -->
       <el-col :span="11">
         <!-- 折线图：注册趋势 -->
@@ -42,7 +75,8 @@
         </el-card>
       </el-col>
     </el-row>
-    <!-- 编辑弹窗、详情弹窗保持原有代码不变 -->
+
+    <!-- 编辑弹窗 -->
     <el-dialog v-model="editDialogVisible" :title="editDialogTitle" width="720px">
       <el-form ref="nodeFormRef" :model="editFormData" :rules="formRules" label-width="120px">
         <el-row :gutter="15">
@@ -66,6 +100,17 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
+            <el-form-item label="注册状态" prop="status">
+              <el-select v-model="editFormData.status" placeholder="请选择" style="width:100%">
+                <el-option label="待审核" :value="1" />
+                <el-option label="已通过" :value="2" />
+                <el-option label="禁用" :value="3" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="15">
+          <el-col :span="12">
             <el-form-item label="注册日期" prop="regDate">
               <el-date-picker
                 v-model="editFormData.regDate"
@@ -77,8 +122,6 @@
               ></el-date-picker>
             </el-form-item>
           </el-col>
-        </el-row>
-        <el-row :gutter="15">
           <el-col :span="12">
             <el-form-item label="所属省份" prop="provId">
               <el-select v-model="editFormData.provId" placeholder="请选择" style="width:100%" @change="onProvinceChange($event)">
@@ -86,6 +129,8 @@
               </el-select>
             </el-form-item>
           </el-col>
+        </el-row>
+        <el-row :gutter="15">
           <el-col :span="12">
             <el-form-item label="所属城市" prop="cityId">
               <el-select v-model="editFormData.cityId" placeholder="请选择" style="width:100%">
@@ -149,6 +194,8 @@
         <el-button type="primary" @click="submitForm">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 详情弹窗 -->
     <el-dialog v-model="detailDialogVisible" title="企业详情" width="720px">
       <div class="detail-container">
         <el-row :gutter="15">
@@ -174,18 +221,26 @@
           </el-col>
           <el-col :span="12">
             <div class="detail-item">
-              <span class="detail-label">注册日期：</span>
-              <span class="detail-value">{{ detailFormData.regDate || '-' }}</span>
+              <span class="detail-label">注册状态：</span>
+              <span class="detail-value">{{ getStatusName(detailFormData.status) || '-' }}</span>
             </div>
           </el-col>
         </el-row>
         <el-row :gutter="15">
           <el-col :span="12">
             <div class="detail-item">
+              <span class="detail-label">注册日期：</span>
+              <span class="detail-value">{{ detailFormData.regDate || '-' }}</span>
+            </div>
+          </el-col>
+          <el-col :span="12">
+            <div class="detail-item">
               <span class="detail-label">所属省份：</span>
               <span class="detail-value">{{ getProvName(detailFormData.provId) || '-' }}</span>
             </div>
           </el-col>
+        </el-row>
+        <el-row :gutter="15">
           <el-col :span="12">
             <div class="detail-item">
               <span class="detail-label">所属城市：</span>
@@ -252,37 +307,45 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import NodeSearchForm from '@/components/system/NodeSearchForm.vue'
 import NodeTable from '@/components/system/NodeTable.vue'
 import TrendLine from '@/components/dashboard/TrendLine.vue'
 import ProvPie from '@/components/dashboard/ProvPie.vue'
 import TypePie from '@/components/dashboard/TypePie.vue'
 import ProvBar from '@/components/dashboard/ProvBar.vue'
-import { getNodePage, saveNode, deleteNode, getNodeDetail } from '@/api/admin/node'
+import { getNodePage, saveNode, deleteNode, getNodeDetail, updateNodeStatus } from '@/api/admin/node'
 import { getDashboardStats } from '@/api/admin/stats'
 import { useDictStore } from '@/store/dict'
+
 const dictStore = useDictStore()
 const nodeFormRef = ref(null)
+
+// 表格数据与分页
 const tableData = ref([])
 const pageInfo = ref({
   pageNum: 1,
   pageSize: 10,
   total: 0
 })
+
+// 搜索参数（新增status状态筛选）
 const searchParams = ref({
   name: '',
   type: '',
   provId: '',
-  cityId: ''
+  status: ''
 })
+
+// 看板数据
 const dashboardData = ref({
   registerTrend: [],
   provDistribution: [],
   typeDistribution: [],
   provStats: []
 })
+
+// 编辑弹窗
 const editDialogVisible = ref(false)
 const isAddMode = ref(true)
 const editDialogTitle = computed(() => isAddMode.value ? '新增企业' : '编辑企业')
@@ -301,6 +364,7 @@ const editFormData = ref({
   corporation: '',
   telephone: '',
   regDate: '',
+  status: null,
   remarks: ''
 })
 
@@ -350,6 +414,7 @@ const handleTypeChange = () => {
   nodeFormRef.value?.clearValidate()
 }
 
+// 详情弹窗
 const detailDialogVisible = ref(false)
 const detailFormData = ref({
   nodeId: null,
@@ -366,8 +431,11 @@ const detailFormData = ref({
   corporation: '',
   telephone: '',
   regDate: '',
+  status: null,
   remarks: ''
 })
+
+// 字典翻译方法
 const getTypeName = (value) => {
   const item = dictStore.typeList.find(i => i.value === value)
   return item ? item.label : ''
@@ -380,6 +448,13 @@ const getCityName = (value) => {
   const item = dictStore.cityList.find(i => i.value === value)
   return item ? item.label : ''
 }
+// 注册状态中文翻译
+const getStatusName = (value) => {
+  const statusMap = { 1: '待审核', 2: '已通过', 3: '禁用' }
+  return statusMap[value] || '未知'
+}
+
+// 加载表格数据
 const loadTableData = async () => {
   const params = {
     pageNum: pageInfo.value.pageNum,
@@ -392,21 +467,40 @@ const loadTableData = async () => {
     pageInfo.value.total = res.data.total
   }
 }
+
+// 加载看板数据
 const loadDashboard = async () => {
   const res = await getDashboardStats()
   if (res.code === 200) {
     dashboardData.value = res.data
   }
 }
-const handleSearch = (params) => {
-  searchParams.value = { ...params }
+
+// 搜索
+const handleSearch = () => {
   pageInfo.value.pageNum = 1
   loadTableData()
 }
+
+// 重置搜索
+const resetSearch = () => {
+  searchParams.value = {
+    name: '',
+    type: '',
+    provId: '',
+    status: ''
+  }
+  pageInfo.value.pageNum = 1
+  loadTableData()
+}
+
+// 分页切换
 const handlePageChange = (page) => {
   pageInfo.value.pageNum = page
   loadTableData()
 }
+
+// 打开新增弹窗
 const openAddDialog = () => {
   isAddMode.value = true
   editFormData.value = {
@@ -424,12 +518,15 @@ const openAddDialog = () => {
     corporation: '',
     telephone: '',
     regDate: '',
+    status: null,
     remarks: ''
   }
   dictStore.setCityList([])
   refreshRules()
   editDialogVisible.value = true
 }
+
+// 打开编辑弹窗
 const openEditDialog = async (row) => {
   isAddMode.value = false
   if (!row.nodeId) {
@@ -454,6 +551,7 @@ const openEditDialog = async (row) => {
       corporation: vo.corporation,
       telephone: vo.telephone,
       regDate: vo.regDate ? vo.regDate : '',
+      status: vo.status,
       remarks: vo.remarks
     }
     if (editFormData.value.provId) {
@@ -463,6 +561,8 @@ const openEditDialog = async (row) => {
     editDialogVisible.value = true
   }
 }
+
+// 打开详情弹窗
 const openDetailDialog = async (row) => {
   if (!row.nodeId) {
     ElMessage.warning('该行数据主键为空，无法获取详情')
@@ -486,6 +586,7 @@ const openDetailDialog = async (row) => {
       corporation: vo.corporation,
       telephone: vo.telephone,
       regDate: vo.regDate ? vo.regDate : '',
+      status: vo.status,
       remarks: vo.remarks
     }
     if (detailFormData.value.provId) {
@@ -494,6 +595,8 @@ const openDetailDialog = async (row) => {
     detailDialogVisible.value = true
   }
 }
+
+// 提交表单
 const submitForm = async () => {
   try {
     await nodeFormRef.value.validate()
@@ -501,11 +604,13 @@ const submitForm = async () => {
     submitData.type = submitData.type ? Number(submitData.type) : null
     submitData.provId = submitData.provId ? Number(submitData.provId) : null
     submitData.cityId = submitData.cityId ? Number(submitData.cityId) : null
+    submitData.status = submitData.status ? Number(submitData.status) : null
+    
     const nullableList = ['fishingLic','aquacultureLic','foodBusinessLic','address','remarks']
     nullableList.forEach(field => {
       if (submitData[field] === '') submitData[field] = null
     })
-    console.log('最终提交报文', submitData)
+    
     const res = await saveNode(submitData)
     if (res.code === 200) {
       ElMessage.success('保存成功')
@@ -517,6 +622,8 @@ const submitForm = async () => {
     console.error('提交异常', err)
   }
 }
+
+// 删除企业
 const handleDelete = async (row) => {
   if (!row.nodeId) {
     ElMessage.warning('该行数据主键为空，无法删除')
@@ -530,10 +637,56 @@ const handleDelete = async (row) => {
     loadDashboard()
   }
 }
+
+// 审核通过企业
+const handlePass = async (row) => {
+  if (!row.nodeId) {
+    ElMessage.warning('该行数据主键为空，无法审核')
+    return
+  }
+  if (row.status === 2) {
+    ElMessage.info('该企业已为审核通过状态')
+    return
+  }
+  await ElMessageBox.confirm('确认将该企业审核通过？', '审核确认')
+  const res = await updateNodeStatus(row.nodeId, 2)
+  if (res.code === 200) {
+    ElMessage.success('审核通过成功')
+    loadTableData()
+    loadDashboard()
+  }
+}
+
+// 禁用企业
+const handleDisable = async (row) => {
+  if (!row.nodeId) {
+    ElMessage.warning('该行数据主键为空，无法禁用')
+    return
+  }
+  if (row.status === 3) {
+    ElMessage.info('该企业已为禁用状态')
+    return
+  }
+  await ElMessageBox.confirm('确认禁用该企业？禁用后企业将无法登录系统', '禁用确认', { type: 'warning' })
+  const res = await updateNodeStatus(row.nodeId, 3)
+  if (res.code === 200) {
+    ElMessage.success('禁用成功')
+    loadTableData()
+    loadDashboard()
+  }
+}
+
+// 省份切换联动城市（编辑弹窗）
 const onProvinceChange = async (provId) => {
   editFormData.value.cityId = null
   await dictStore.loadCityList(provId)
 }
+
+// 搜索栏省份切换
+const onSearchProvinceChange = () => {
+  searchParams.value.cityId = ''
+}
+
 onMounted(async () => {
   await dictStore.initDict()
   loadTableData()
@@ -546,14 +699,17 @@ onMounted(async () => {
   font-size: 18px;
   font-weight: 500;
   color: #303133;
+  margin-left: 20px;
 }
 .page-container {
-  padding: 16px;
+  padding: 8px;
 }
 .content-row {
-  margin-top: 16px;
+  margin-top: 8px;
 }
-
+.search-form {
+  margin-bottom: 0;
+}
 /* 区分不同图表高度，整体压缩 */
 :deep(.chart‑line .el-card__body) {
   padding: 2px !important;
@@ -569,7 +725,7 @@ onMounted(async () => {
 }
 .detail-item {
   display: flex;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .detail-label {
   width: 120px;
@@ -578,5 +734,10 @@ onMounted(async () => {
 }
 .detail-value {
   color: #303133;
+}
+
+.el-divider{
+  margin-top: 4px ;
+  margin-bottom: 20px;
 }
 </style>
